@@ -92,6 +92,49 @@ class UtilitiesTest(parameterized.TestCase, tf.test.TestCase):
     tf_unit = core.hz_to_unit(hz, hz_min, hz_max)
     self.assertAllClose(np_unit, tf_unit)
 
+  def test_harmonic_to_sinusoidal(self):
+    f0_hz = core.midi_to_hz([80, 81, 82, 81, 80])[np.newaxis, :, np.newaxis]
+    harm_amps = np.ones(shape=(1, 5, 3))
+    amps, sin_freqs = core.harmonic_to_sinusoidal(10, harm_amps, f0_hz)
+    sin_freqs = np.squeeze(sin_freqs)
+    f0_hz = np.squeeze(f0_hz)
+    self.assertAllClose(amps, harm_amps * 10)
+    self.assertAllClose(sin_freqs[..., 0], f0_hz)
+    self.assertAllClose(sin_freqs[..., 1], f0_hz * 2)
+    self.assertAllClose(sin_freqs[..., 2], f0_hz * 3)
+
+  def test_harmonic_to_sinusoidal_removes_nyquist_f0(self):
+    f0_hz = np.asarray([7999, 8000, 8001, 8000, 7999])[np.newaxis, :,
+                                                       np.newaxis]
+    harm_amps = np.ones(shape=(1, 5, 3))
+    amps, sin_freqs = core.harmonic_to_sinusoidal(10, harm_amps, f0_hz)
+    sin_freqs = np.squeeze(sin_freqs)
+    f0_hz = np.squeeze(f0_hz)
+    expected_amps_f0 = harm_amps[..., 0] * 10
+    expected_amps_f0[:, 1:4] = 0
+    self.assertAllClose(amps[..., 0], expected_amps_f0)
+    self.assertAllClose(sin_freqs[..., 0], f0_hz)
+    self.assertAllClose(sin_freqs[..., 1], f0_hz * 2)
+    self.assertAllClose(sin_freqs[..., 2], f0_hz * 3)
+
+  def test_harmonic_to_sinusoidal_removes_nyquist_harmonics(self):
+    f0_hz = np.asarray([50, 3001, 4001, 3001, 50])[np.newaxis, :, np.newaxis]
+    harm_amps = np.ones(shape=(1, 5, 3))
+    amps, sin_freqs = core.harmonic_to_sinusoidal(10, harm_amps, f0_hz)
+    sin_freqs = np.squeeze(sin_freqs)
+    f0_hz = np.squeeze(f0_hz)
+    expected_amps_f0 = harm_amps[:, :, 0] * 10
+    expected_amps_f1 = harm_amps[:, :, 1] * 10
+    expected_amps_f1[:, 2] = 0
+    expected_amps_f2 = harm_amps[:, :, 2] * 10
+    expected_amps_f2[:, 1:4] = 0
+    self.assertAllClose(amps[..., 0], expected_amps_f0)
+    self.assertAllClose(amps[..., 1], expected_amps_f1)
+    self.assertAllClose(amps[..., 2], expected_amps_f2)
+    self.assertAllClose(sin_freqs[..., 0], f0_hz)
+    self.assertAllClose(sin_freqs[..., 1], f0_hz * 2)
+    self.assertAllClose(sin_freqs[..., 2], f0_hz * 3)
+
 
 class ResampleTest(parameterized.TestCase, tf.test.TestCase):
 
